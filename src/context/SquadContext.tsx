@@ -4,7 +4,7 @@
 // ============================================
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from './AuthContext'
 import { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -104,7 +104,7 @@ export const SquadProvider = ({ children }: { children: ReactNode }) => {
       joined_at: m.joined_at,
     }))
 
-    setCurrentSquad({ ...squad, members: squadMembers })
+    setCurrentSquad({ ...squad, status: squad.status as 'waiting' | 'in-game', members: squadMembers })
     subscribeToSquad(squadId)
   }
 
@@ -177,6 +177,7 @@ export const SquadProvider = ({ children }: { children: ReactNode }) => {
 
       setCurrentSquad({
         ...squad,
+        status: squad.status as 'waiting' | 'in-game',
         members: [{ user_id: user.id, joined_at: new Date().toISOString() }],
       })
 

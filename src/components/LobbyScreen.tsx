@@ -9,7 +9,7 @@ import { useSquad } from '../context/SquadContext';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { Copy, Users, Share2, ArrowLeft, Play } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '@/integrations/supabase/client';
 import { inviteFriend, showPopup, hapticImpact } from '../lib/telegram';
 
 const LobbyScreen = () => {

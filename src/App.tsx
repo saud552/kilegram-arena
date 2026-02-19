@@ -1,8 +1,3 @@
-// ============================================
-// ملف: src/App.tsx
-// الوظيفة: المكون الرئيسي للتطبيق - إدارة المزودات والمسارات ومعالجة الروابط العميقة
-// ============================================
-
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -17,9 +12,9 @@ import Store from './pages/Store';
 import Squad from './pages/Squad';
 import Profile from './pages/Profile';
 import Wiki from './components/wiki';
+import AdminDashboard from './pages/AdminDashboard';
 import BottomNav from './components/BottomNav';
 
-// مكون داخلي للتعامل مع التوجيه بناءً على حالة المستخدم والروابط العميقة
 function AppRoutes() {
   const { user, isLoading } = useAuth();
   const { joinSquad } = useSquad();
@@ -27,20 +22,11 @@ function AppRoutes() {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    if (isLoading) return; // انتظار تحميل المستخدم
-
-    // التحقق من وجود start_param (رابط عميق)
+    if (isLoading) return;
     const startParam = getStartParam();
-    
     if (startParam) {
-      // محاولة الانضمام إلى السكواد تلقائياً
       joinSquad(startParam).then(success => {
-        if (success) {
-          navigate('/lobby');
-        } else {
-          // إذا فشل، نذهب إلى الصفحة الرئيسية
-          navigate('/');
-        }
+        navigate(success ? '/lobby' : '/');
         setInitialized(true);
       });
     } else {
@@ -51,7 +37,7 @@ function AppRoutes() {
   if (isLoading || !initialized) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-kilegram-blue animate-pulse">جاري التحميل...</div>
+        <div className="text-cyan-400 animate-pulse">جاري التحميل...</div>
       </div>
     );
   }
@@ -65,23 +51,18 @@ function AppRoutes() {
       <Route path="/squad" element={<Squad />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/wiki" element={<Wiki />} />
+      <Route path="/admin" element={<AdminDashboard />} />
     </Routes>
   );
 }
 
-// المكون الرئيسي
 function AppContent() {
   const { user, isLoading } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
   const [showCharacterSelect, setShowCharacterSelect] = useState(false);
 
   useEffect(() => {
-    // بعد انتهاء شاشة البداية
     if (!showSplash && !isLoading) {
-      // إذا كان المستخدم جديداً (ليس لديه شخصية مختارة في localStorage؟ نتحقق من وجود selectedSkin)
-      // ولكننا نخزن الشخصية في localStorage ضمن user object، لذلك نعتمد على user
-      // إذا كان user موجوداً ولكن لم يختر شخصية بعد؟ في الواقع المستخدم الجديد لديه selectedSkin = 'soldier' افتراضياً.
-      // لجعل شاشة اختيار الشخصية تظهر مرة واحدة فقط، يمكننا استخدام متغير منفصل في localStorage
       const hasSeenCharacterSelect = localStorage.getItem('kilegram_has_seen_character_select');
       if (!hasSeenCharacterSelect && user) {
         setShowCharacterSelect(true);
@@ -90,13 +71,8 @@ function AppContent() {
     }
   }, [showSplash, isLoading, user]);
 
-  if (showSplash) {
-    return <SplashScreen onFinish={() => setShowSplash(false)} />;
-  }
-
-  if (showCharacterSelect) {
-    return <CharacterSelect />;
-  }
+  if (showSplash) return <SplashScreen onFinish={() => setShowSplash(false)} />;
+  if (showCharacterSelect) return <CharacterSelect />;
 
   return (
     <>

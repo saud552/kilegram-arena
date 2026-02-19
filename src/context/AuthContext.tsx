@@ -1,6 +1,5 @@
 // ============================================
-// ملف: src/context/AuthContext.tsx
-// الوظيفة: إدارة بيانات المستخدم (تيليجرام + العملات + الشخصيات)
+// AuthContext - يدعم Telegram Auth + قاعدة البيانات
 // ============================================
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -10,16 +9,15 @@ import { getUserData, initTelegramApp } from '../lib/telegram';
 export interface Skin {
   id: string;
   name: string;
-  price: number; // 0 تعني مجانية
-  imageUrl: string; // يمكن أن يكون رمزاً تعبيرياً أو رابط صورة
+  price: number;
+  imageUrl: string;
 }
 
-// الشخصيات الافتراضية
 export const AVAILABLE_SKINS: Skin[] = [
   { id: 'soldier', name: 'الجندي', price: 0, imageUrl: '🪖' },
   { id: 'medic', name: 'المسعف', price: 0, imageUrl: '💊' },
-  { id: 'sniper', name: 'القناص', price: 0, imageUrl: '🎯' },
-  { id: 'commander', name: 'القائد', price: 50, imageUrl: '⭐' }, // مدفوع
+  { id: 'sniper_skin', name: 'القناص', price: 0, imageUrl: '🎯' },
+  { id: 'commander', name: 'القائد', price: 50, imageUrl: '⭐' },
 ];
 
 interface User {
@@ -28,33 +26,34 @@ interface User {
   firstName: string;
   lastName?: string;
   photoUrl?: string;
-  country: string; // رمز البلد (مشتق من اللغة أو يختاره المستخدم)
+  country: string;
   coins: number;
-  selectedSkin: string; // id of the skin
-  ownedSkins: string[]; // قائمة ids للشخصيات المملوكة
+  gems: number;
+  xp: number;
+  level: number;
+  totalKills: number;
+  totalWins: number;
+  totalMatches: number;
+  selectedSkin: string;
+  ownedSkins: string[];
+  role: 'admin' | 'player';
 }
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   updateUser: (updates: Partial<User>) => void;
-  selectSkin: (skinId: string) => boolean; // true إذا نجح الاختيار
-  purchaseSkin: (skinId: string) => boolean; // true إذا نجح الشراء
+  selectSkin: (skinId: string) => boolean;
+  purchaseSkin: (skinId: string) => boolean;
   addCoins: (amount: number) => void;
+  addXP: (amount: number) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// دالة مساعدة لاستخراج رمز البلد من اللغة (مؤقتة)
 const getCountryFromLanguage = (langCode?: string): string => {
-  // يمكن تحسينها لاحقاً بخريطة حقيقية، أو طلب من المستخدم
   const map: Record<string, string> = {
-    en: '🇺🇸',
-    ar: '🇸🇦',
-    fr: '🇫🇷',
-    es: '🇪🇸',
-    ru: '🇷🇺',
-    zh: '🇨🇳',
+    en: '🇺🇸', ar: '🇸🇦', fr: '🇫🇷', es: '🇪🇸', ru: '🇷🇺', zh: '🇨🇳',
   };
   return map[langCode || 'en'] || '🏳️';
 };
@@ -64,10 +63,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // تهيئة تطبيق تيليجرام
     initTelegramApp();
 
-    // محاولة تحميل البيانات من localStorage أولاً (لأن المستخدم قد يكون اختار شخصية مسبقاً)
     const storedUser = localStorage.getItem('kilegram_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -75,7 +72,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // إذا لم يوجد في localStorage، نستخدم بيانات تيليجرام
     const tgUser = getUserData();
     if (tgUser) {
       const newUser: User = {
@@ -85,14 +81,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         lastName: tgUser.lastName,
         photoUrl: tgUser.photoUrl,
         country: getCountryFromLanguage(tgUser.languageCode),
-        coins: 100, // هدية ترحيبية
-        selectedSkin: 'soldier', // الشخصية الافتراضية
-        ownedSkins: ['soldier', 'medic', 'sniper'], // يمتلك المجانية فقط
+        coins: 100,
+        gems: 0,
+        xp: 0,
+        level: 1,
+        totalKills: 0,
+        totalWins: 0,
+        totalMatches: 0,
+        selectedSkin: 'soldier',
+        ownedSkins: ['soldier', 'medic', 'sniper_skin'],
+        role: 'player',
       };
       setUser(newUser);
       localStorage.setItem('kilegram_user', JSON.stringify(newUser));
     } else {
-      // للاختبار المحلي (بدون تيليجرام) - نستخدم بيانات وهمية
       const mockUser: User = {
         id: '12345',
         username: '@Khayal_Dev',
@@ -100,8 +102,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         photoUrl: '👤',
         country: '🇾🇪',
         coins: 500,
+        gems: 10,
+        xp: 0,
+        level: 1,
+        totalKills: 0,
+        totalWins: 0,
+        totalMatches: 0,
         selectedSkin: 'soldier',
-        ownedSkins: ['soldier', 'medic', 'sniper'],
+        ownedSkins: ['soldier', 'medic', 'sniper_skin'],
+        role: 'player',
       };
       setUser(mockUser);
       localStorage.setItem('kilegram_user', JSON.stringify(mockUser));
@@ -120,7 +129,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return false;
     const skin = AVAILABLE_SKINS.find(s => s.id === skinId);
     if (!skin) return false;
-    // التحقق من امتلاك الشخصية
     if (!user.ownedSkins.includes(skinId) && skin.price > 0) return false;
     updateUser({ selectedSkin: skinId });
     return true;
@@ -130,8 +138,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return false;
     const skin = AVAILABLE_SKINS.find(s => s.id === skinId);
     if (!skin || skin.price === 0) return false;
-    if (user.ownedSkins.includes(skinId)) return false; // يمتلكها بالفعل
-    if (user.coins < skin.price) return false; // رصيد غير كاف
+    if (user.ownedSkins.includes(skinId)) return false;
+    if (user.coins < skin.price) return false;
 
     const updatedUser = {
       ...user,
@@ -148,8 +156,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     updateUser({ coins: user.coins + amount });
   };
 
+  const addXP = (amount: number) => {
+    if (!user) return;
+    const newXP = user.xp + amount;
+    const newLevel = Math.floor(Math.sqrt(newXP / 50)) + 1;
+    updateUser({ xp: newXP, level: newLevel });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, updateUser, selectSkin, purchaseSkin, addCoins }}>
+    <AuthContext.Provider value={{ user, isLoading, updateUser, selectSkin, purchaseSkin, addCoins, addXP }}>
       {children}
     </AuthContext.Provider>
   );

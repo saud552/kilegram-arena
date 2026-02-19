@@ -176,6 +176,62 @@ export type Database = {
         }
         Relationships: []
       }
+      squad_members: {
+        Row: {
+          id: string
+          joined_at: string
+          squad_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          squad_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          squad_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "squad_members_squad_id_fkey"
+            columns: ["squad_id"]
+            isOneToOne: false
+            referencedRelation: "squads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      squads: {
+        Row: {
+          created_at: string
+          creator_id: string
+          id: string
+          max_players: number
+          squad_code: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          creator_id: string
+          id?: string
+          max_players?: number
+          squad_code: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          creator_id?: string
+          id?: string
+          max_players?: number
+          squad_code?: string
+          status?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
