@@ -1,8 +1,8 @@
 // ============================================
-// 3D Weapon Models — GLB with auto-centering
+// 3D Weapon Models — GLB with safe material replacement
 // ============================================
 
-import React, { useRef, Suspense } from 'react';
+import React, { useRef, Suspense, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Center } from '@react-three/drei';
 import * as THREE from 'three';
@@ -31,27 +31,78 @@ const WEAPON_GLB_MAP: Record<string, string> = {
   colt_m1911: '/Models/weapons/colt_pistol_m1911a1_game_asset.glb',
 };
 
-const GLBWeapon: React.FC<{ weaponId: string }> = ({ weaponId }) => {
-  const path = WEAPON_GLB_MAP[weaponId];
-  const { scene } = useGLTF(path);
-
-  const cloned = React.useMemo(() => {
-    const c = scene.clone();
-    c.traverse((child: any) => {
-      if (child.isMesh && child.material) {
-        const oldMat = child.material;
-        child.material = new THREE.MeshStandardMaterial({
-          color: oldMat.color || new THREE.Color(0x888888),
-          map: oldMat.map || null,
-          normalMap: oldMat.normalMap || null,
-          roughness: oldMat.roughness ?? 0.5,
-          metalness: oldMat.metalness ?? 0.3,
+/** Replace all materials in a scene with safe MeshStandardMaterial */
+function sanitizeMaterials(obj: THREE.Object3D) {
+  obj.traverse((child: any) => {
+    if (!child.isMesh) return;
+    
+    const replaceMat = (mat: any): THREE.MeshStandardMaterial => {
+      try {
+        const safeMat = new THREE.MeshStandardMaterial({
+          color: (mat && mat.color) ? mat.color.clone() : new THREE.Color(0x888888),
+          map: (mat && mat.map) || null,
+          normalMap: (mat && mat.normalMap) || null,
+          roughness: (mat && mat.roughness != null) ? mat.roughness : 0.5,
+          metalness: (mat && mat.metalness != null) ? mat.metalness : 0.3,
+          side: THREE.DoubleSide,
+          transparent: (mat && mat.transparent) || false,
+          opacity: (mat && mat.opacity != null) ? mat.opacity : 1,
+        });
+        return safeMat;
+      } catch {
+        return new THREE.MeshStandardMaterial({
+          color: 0x888888,
+          roughness: 0.5,
+          metalness: 0.3,
           side: THREE.DoubleSide,
         });
       }
-    });
-    return c;
-  }, [scene]);
+    };
+
+    try {
+      if (Array.isArray(child.material)) {
+        child.material = child.material.map(replaceMat);
+      } else if (child.material) {
+        child.material = replaceMat(child.material);
+      } else {
+        child.material = new THREE.MeshStandardMaterial({
+          color: 0x888888,
+          side: THREE.DoubleSide,
+        });
+      }
+    } catch {
+      child.material = new THREE.MeshStandardMaterial({
+        color: 0x888888,
+        side: THREE.DoubleSide,
+      });
+    }
+  });
+}
+
+const GLBWeapon: React.FC<{ weaponId: string; onError?: () => void }> = ({ weaponId, onError }) => {
+  const path = WEAPON_GLB_MAP[weaponId];
+  
+  let gltf: any;
+  try {
+    gltf = useGLTF(path);
+  } catch (e) {
+    console.error(`[WeaponModel3D] useGLTF failed for ${weaponId}:`, e);
+    onError?.();
+    return null;
+  }
+
+  const cloned = React.useMemo(() => {
+    try {
+      const c = gltf.scene.clone(true);
+      sanitizeMaterials(c);
+      return c;
+    } catch (e) {
+      console.error(`[WeaponModel3D] Clone/sanitize failed for ${weaponId}:`, e);
+      return null;
+    }
+  }, [gltf.scene, weaponId]);
+
+  if (!cloned) return null;
 
   return (
     <Center>
@@ -62,9 +113,25 @@ const GLBWeapon: React.FC<{ weaponId: string }> = ({ weaponId }) => {
 
 const FallbackWeapon: React.FC<{ scale: number }> = ({ scale }) => (
   <group scale={scale}>
-    <mesh>
-      <boxGeometry args={[1.2, 0.2, 0.15]} />
-      <meshStandardMaterial color="#333" roughness={0.3} metalness={0.8} />
+    {/* Rifle body */}
+    <mesh position={[0, 0, 0]}>
+      <boxGeometry args={[1.2, 0.15, 0.08]} />
+      <meshStandardMaterial color="#2a2a2a" roughness={0.3} metalness={0.8} />
+    </mesh>
+    {/* Stock */}
+    <mesh position={[-0.5, -0.05, 0]}>
+      <boxGeometry args={[0.3, 0.2, 0.06]} />
+      <meshStandardMaterial color="#1a1a1a" roughness={0.4} metalness={0.6} />
+    </mesh>
+    {/* Barrel */}
+    <mesh position={[0.7, 0.02, 0]} rotation={[0, 0, Math.PI / 2]}>
+      <cylinderGeometry args={[0.02, 0.02, 0.3, 8]} />
+      <meshStandardMaterial color="#333" roughness={0.2} metalness={0.9} />
+    </mesh>
+    {/* Magazine */}
+    <mesh position={[0.1, -0.15, 0]}>
+      <boxGeometry args={[0.08, 0.15, 0.05]} />
+      <meshStandardMaterial color="#1a1a1a" roughness={0.5} metalness={0.7} />
     </mesh>
   </group>
 );
@@ -74,12 +141,20 @@ class GLBErrorBoundary extends React.Component<
   { hasError: boolean }
 > {
   state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
+  static getDerivedStateFromError(error: any) { 
+    console.error('[WeaponGLBErrorBoundary] Caught render error:', error?.message || error);
+    return { hasError: true }; 
+  }
+  componentDidCatch(error: any, info: any) {
+    console.error('[WeaponGLBErrorBoundary] Error details:', error, info?.componentStack);
+  }
   render() { return this.state.hasError ? this.props.fallback : this.props.children; }
 }
 
 const WeaponModel3D: React.FC<WeaponModelProps> = ({ weaponId, rotate = true, scale = 1 }) => {
   const groupRef = useRef<THREE.Group>(null);
+  const [loadError, setLoadError] = useState(false);
+  
   useFrame((_, delta) => {
     if (rotate && groupRef.current) groupRef.current.rotation.y += delta * 0.5;
   });
@@ -87,15 +162,17 @@ const WeaponModel3D: React.FC<WeaponModelProps> = ({ weaponId, rotate = true, sc
   const hasGLB = weaponId in WEAPON_GLB_MAP;
   const fallback = <FallbackWeapon scale={scale} />;
 
+  if (loadError || !hasGLB) {
+    return <group ref={groupRef} scale={scale}>{fallback}</group>;
+  }
+
   return (
     <group ref={groupRef} scale={scale}>
-      {hasGLB ? (
-        <GLBErrorBoundary fallback={fallback}>
-          <Suspense fallback={fallback}>
-            <GLBWeapon weaponId={weaponId} />
-          </Suspense>
-        </GLBErrorBoundary>
-      ) : fallback}
+      <GLBErrorBoundary fallback={fallback}>
+        <Suspense fallback={fallback}>
+          <GLBWeapon weaponId={weaponId} onError={() => setLoadError(true)} />
+        </Suspense>
+      </GLBErrorBoundary>
     </group>
   );
 };
